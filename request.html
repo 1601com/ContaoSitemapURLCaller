@@ -1,0 +1,195 @@
+<script>
+
+    /**
+     * @var {string[]} links
+     */
+    var links = null;
+
+    /**
+     * @var {number} i
+     */
+    var i = 0;
+
+    /**
+     * @var {number} intervalIndex
+     */
+    var intervalIndex = 0;
+
+    /**
+     * @param url
+     */
+    function request(url) {
+        if (!url) {
+            console.error('STRANGE URL', url);
+            return;
+        }
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', url);
+        xhr.onreadystatechange = function (ev) {
+            if (xhr.readyState !== 4) {
+                return;
+            }
+
+            if (xhr.status >= 500) {
+                request(url);
+            }
+
+            console.log('URL done', ev.target.responseURL);
+
+            if (ev.target.responseURL) {
+                localStorage.setItem(ev.target.responseURL, ev.target.responseURL);
+            }
+        }
+        xhr.send();
+    }
+
+    /**
+     *
+     */
+    function loadSitemap() {
+        links = [];
+        var sitemap = document.getElementById('sitemap').value;
+
+        if (!sitemap) {
+            console.error('No sitemap path');
+            return;
+        }
+
+        console.log('LOAD SITEMAP');
+
+        var url = location.origin + sitemap;
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function (ev) {
+            if (xhr.readyState === 4 && xhr.status !== 200) {
+                console.error('Error while loading sitemap', xhr.status);
+            }
+
+            if (xhr.readyState === 4 && xhr.status === 200) {
+                var parser = new DOMParser();
+                var doc = parser.parseFromString(xhr.responseText, 'text/xml');
+                var locs = doc.getElementsByTagName('loc');
+                for (let j = 0; j < locs.length; j++) {
+                    if (!locs[j].innerHTML) {
+                        continue;
+                    }
+                    links.push(locs[j].innerHTML);
+                }
+                console.log('SITEMAP LOADED');
+            }
+        }
+
+        xhr.open('GET', url);
+        xhr.send();
+    }
+
+    /**
+     *
+     */
+    function interval() {
+        i = 0;
+
+        if (!links || !links.length) {
+            console.error('No links available; Pls. reload the sitemap');
+            return;
+        }
+
+        if (intervalIndex) {
+            clearInterval(intervalIndex);
+            intervalIndex = null;
+        }
+
+        var direction = document.getElementById('direction').value;
+
+        console.log('START REQUESTS, DIRECTION', direction);
+
+        switch (direction) {
+            case 'normal':
+                links.sort();
+                break;
+            case 'reverse':
+                links.sort().reverse();
+                break;
+        }
+
+        intervalIndex = setInterval(function () {
+            if (localStorage.getItem(links[i])) {
+                console.log('ALREADY CHECK URL', links[i]);
+                i++;
+                return;
+            }
+
+            request(links[i]);
+            i++;
+            if (i >= (links.length - 1)) {
+                clearInterval(intervalIndex);
+                console.log('REQUEST DONE');
+            }
+        }, 10);
+    }
+
+    /**
+     *
+     */
+    function clearLocalStorage() {
+        console.log('CLEAR STORAGE');
+        localStorage.clear();
+    }
+</script>
+
+<style>
+    * {
+        margin: 0;
+        box-sizing: border-box;
+        padding: 0;
+        outline: none;
+    }
+
+    label input {
+        display: inline-block;
+        margin: 20px;
+        border: 1px solid #3d3d3d;
+        padding: 10px 20px;
+        background: #FFFFFF;
+        color: #000;
+    }
+
+    button, select {
+        display: inline-block;
+        margin: 20px;
+        border: none;
+        padding: 10px 20px;
+        background: #3d3d3d;
+        color: #fff;
+        text-transform: uppercase;
+    }
+
+    .btn-okay {
+        background: darkblue;
+    }
+
+    .btn-warn {
+        background: orange;
+    }
+
+    .btn-error {
+        background: darkred;
+    }
+
+</style>
+
+<label>
+    <input id="sitemap" type="text" name="sitemap" placeholder="Sitemap path: /share/sitemap.xml"
+           value="/share/sitemap.xml">
+</label>
+
+<button class="btn-okay" onclick="loadSitemap()">Load sitemap</button>
+
+<select id="direction">
+    <option value="normal">Normal</option>
+    <option value="reverse">Reverse</option>
+</select>
+
+<button class="btn-warn" onclick="interval()">Start</button>
+
+<button class="btn-error" onclick="clearLocalStorage()">Clear cache</button>
